@@ -4,6 +4,9 @@ import socket
 import subprocess
 import urllib.request
 import psutil
+import os
+CONFIG_FILE = 'config.json'
+
 from flask import Flask, render_template, jsonify, request, Response
 
 app = Flask(__name__)
