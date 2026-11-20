@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="{{ config.default_theme }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ config.hub_title }}</title>
+    <link rel="icon" type="image/png" href="/favicon.ico?v=4">
+    
+    <style>
+        :root[data-theme="dark"] {
+            --bg: #0f1117; --card: #1a1d27; --text: #e2e8f0; --muted: #94a3b8;
+            --border: #2d3348; --accent: #3b82f6; --accent-hover: #2563eb;
+            --green: #10b981; --red: #ef4444;
+        }
+        :root[data-theme="light"] {
+            --bg: #f1f5f9; --card: #ffffff; --text: #0f172a; --muted: #64748b;
+            --border: #cbd5e1; --accent: #2563eb; --accent-hover: #1d4ed8;
+            --green: #059669; --red: #dc2626;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+        body { background: var(--bg); color: var(--text); padding: 24px; transition: 0.2s; }
+        .container { max-width: 1100px; margin: 0 auto; }
+        header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+        .controls { display: flex; gap: 10px; align-items: center; }
+        button, .btn { background: var(--card); color: var(--text); border: 1px solid var(--border); padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; transition: 0.15s; }
+        button:hover, .btn:hover { border-color: var(--accent); }
+                .btn-power-on { background: var(--accent); color: #fff; border-color: var(--accent); min-width: 135px; justify-content: center; font-weight: 600; }
+        .btn-power-on:hover { background: var(--accent-hover); }
+        .btn-power-off { background: var(--red); color: #fff; border-color: var(--red); min-width: 135px; justify-content: center; font-weight: 600; }
+        .btn-power-off:hover { opacity: 0.9; border-color: var(--red); }
+        .btn-reboot { min-width: 105px; justify-content: center; background: rgba(153,27,27,0.85); border-color: #ef4444; color: #ffffff; }
+        .btn-reboot:hover { background: rgba(239,68,68,0.1); }
+        .power-group { display: flex; gap: 6px; width: 100%; margin-bottom: 4px; }
+
+        .btn-danger { border-color: rgba(239,68,68,0.4); color: var(--red); }
+        .btn-danger:hover { background: rgba(239,68,68,0.1); }
+        .icon-btn { padding: 5px; border: 1px solid var(--border); background: var(--bg); display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; transition: 0.15s; opacity: 0.9; }
+        .icon-btn:hover { opacity: 1; border-color: var(--accent); }
+        .icon-edit { color: var(--accent); }
+        .icon-del { color: var(--muted); }
+        .icon-del:hover { color: var(--red); border-color: var(--red); }
+
+        .stats-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
+        .stat-box { background: var(--card); border: 1px solid var(--border); padding: 14px; border-radius: 10px; }
+        .stat-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+        .stat-val { font-size: 20px; font-weight: 700; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 18px; }
+        .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+        .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+        .badge { padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; white-space: nowrap; flex-shrink: 0; background: #991b1b; color: #ffffff; }
+        .badge.online { background: #065f46; color: #ffffff; }
+        .net-info { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; background: var(--bg); padding: 10px; border-radius: 8px; }
+        .agent-stats { font-size: 13px; color: var(--text); background: var(--bg); padding: 8px 10px; border-radius: 8px; display: none; }
+        .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+        #toast { position: fixed; bottom: 20px; right: 20px; background: var(--accent); color: #fff; padding: 12px 18px; border-radius: 8px; display: none; font-size: 14px; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        #modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; justify-content: center; align-items: center; padding: 20px; z-index: 200; }
+        .modal-box { background: var(--card); border: 1px solid var(--border); border-radius: 12px; max-width: 95vw; max-height: 95vh; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+        .modal-box img { max-width: 100%; max-height: 80vh; border-radius: 8px; object-fit: contain; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <div>
+            <h1>{{ config.hub_title }}</h1>
+            <small style="color: var(--muted);" data-i18n="subtitle">Центр управления локальной сетью</small>
+        </div>
+        <div class="controls">
+            <button class="btn-primary" onclick="openAddModal()" data-i18n="btn_add_pc">+ Добавить ПК</button>
+            <select id="modeSelect" style="background: var(--card); color: var(--text); border: 1px solid var(--border); padding: 8px; border-radius: 8px;">
+                <option value="lan" data-i18n="mode_lan">Сеть: LAN (Локальная)</option>
+                <option value="zt" data-i18n="mode_zt">Сеть: ZeroTier (Удалённая)</option>
+            </select>
+            <div style="position:relative; display:inline-block;" id="theme-dropdown-wrap">
+    <button onclick="toggleThemeMenu(event)" data-i18n="btn_theme">Тема</button>
+    <div id="theme-menu" style="display:none; position:absolute; right:0; top:calc(100% + 6px); background:var(--card); border:1px solid var(--border); border-radius:10px; min-width:230px; padding:6px; z-index:300; box-shadow:0 8px 24px rgba(0,0,0,0.4); flex-direction:column; gap:4px;">
+        <button onclick="selectBuiltinTheme('dark')" style="width:100%; justify-content:flex-start; border:none; background:transparent;" data-i18n="theme_dark">Тёмная</button>
+        <button onclick="selectBuiltinTheme('light')" style="width:100%; justify-content:flex-start; border:none; background:transparent;" data-i18n="theme_light">Светлая</button>
+        <div id="custom-themes-list" style="display:flex; flex-direction:column; gap:2px; border-top:1px solid var(--border); margin-top:4px; padding-top:4px;"></div>
+        <button id="btn-new-theme" onclick="openThemeEditor()" style="width:100%; justify-content:flex-start; border:none; background:transparent; color:var(--accent); font-weight:600; border-top:1px solid var(--border); margin-top:2px; padding-top:8px;" data-i18n="theme_custom_new">+ Custom (Создать)</button>
+    </div>
+</div>
+            <button onclick="toggleLang()">RU / EN</button>
+        </div>
+    </header>
+    <div class="stats-bar">
+        <div class="stat-box"><div class="stat-label" data-i18n="hub_cpu">Нагрузка CPU Хаба</div><div class="stat-val" id="hub-cpu">...</div></div>
+        <div class="stat-box"><div class="stat-label" data-i18n="hub_ram">Память ОЗУ Хаба</div><div class="stat-val" id="hub-ram">...</div></div>
+        <div class="stat-box"><div class="stat-label" data-i18n="hub_temp">Температура Хаба</div><div class="stat-val" id="hub-temp">...</div></div>
+    </div>
+    <div class="grid">
+        {% for dev in config.devices %}
+        <div class="card" style="position: relative;">
+            <div style="position: absolute; top: 8px; right: 8px; display: flex; align-items: center; gap: 4px; z-index: 10;">
+                <button onclick="openEditModal('{{ dev.id }}', '{{ dev.name }}', '{{ dev.os }}', '{{ dev.lan_ip }}', '{{ dev.zt_ip }}', '{{ dev.mac }}', '{{ dev.rdp_user }}', {{ 'true' if dev.moonlight else 'false' }}, {{ 'true' if (dev.copyparty or dev.id == 'nas-pc') else 'false' }})" class="icon-btn icon-edit" style="padding: 4px;" title="Редактировать"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/><path d="M15 5l3 3"/><path d="M4.5 16.5l3 3"/></svg></button>
+                <button onclick="deleteDevice('{{ dev.id }}')" class="icon-btn icon-del" style="padding: 4px;" title="Удалить"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+            </div>
+            <div style="padding-right: 60px;">
+                <h3 id="name-{{ dev.id }}" style="word-break: break-word;">{{ dev.name }}</h3>
+                <small style="color: var(--muted);">{{ dev.os }}</small>
+            </div>
+            <div class="net-info">
+                <div>LAN: <b>{{ dev.lan_ip }}</b> <span id="lan-{{ dev.id }}"></span></div>
+                {% if dev.zt_ip %}<div>ZeroTier: <b>{{ dev.zt_ip }}</b> <span id="zt-{{ dev.id }}"></span></div>{% endif %}
+                {% if dev.mac %}<div>MAC: <code>{{ dev.mac }}</code></div>{% endif %}
+            </div>
+            <div class="agent-stats" id="stats-{{ dev.id }}"></div>
+            <div class="actions">
+                <div class="power-group" style="align-items: center;">
+                    <button class="btn-power-on" id="pwr-{{ dev.id }}" onclick="handlePowerBtn('{{ dev.id }}')">Включить (WOL)</button>
+                    <button class="btn-reboot" id="reboot-{{ dev.id }}" style="display: none;" onclick="powerAction('{{ dev.id }}', 'reboot')" title="Перезагрузить" data-i18n="btn_reboot">Перезагрузка</button>
+                    <span class="badge" id="status-{{ dev.id }}" style="margin-left: auto;">Офлайн</span>
+                </div>
+                <a class="btn rdp-link" data-id="{{ dev.id }}" href="/rdp/lan/{{ dev.id }}.rdp">RDP</a>
+                {% if dev.moonlight %}<button onclick="launchMoonlight('{{ dev.lan_ip }}', '{{ dev.zt_ip }}', '{{ dev.name }}')">Moonlight</button>{% endif %}
+                <button onclick="takeScreen('{{ dev.id }}', '{{ dev.name }}')" data-i18n="btn_screen">Скриншот</button>
+                <button onclick="getStats('{{ dev.id }}')" data-i18n="btn_stats">Мониторинг</button>
+                {% if dev.copyparty or dev.id == 'nas-pc' %}<button onclick="openFiles('{{ dev.lan_ip }}', '{{ dev.zt_ip }}')" data-i18n="btn_files">Файлы</button>{% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+<div id="modal" onclick="if(event.target===this) closeModal()">
+    <div class="modal-box">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <b id="modal-title">Скриншот</b>
+            <button onclick="closeModal()">Закрыть</button>
+        </div>
+        <img id="modal-img" src="" alt="Screenshot">
+    </div>
+</div>
+
+</div>
+<div id="add-modal" style="position:fixed; inset:0; background:rgba(0,0,0,0.75); display:none; justify-content:center; align-items:center; padding:20px; z-index:260;">
+    <div style="background:var(--card); border:1px solid var(--border); border-radius:12px; max-width:440px; width:100%; padding:20px; display:flex; flex-direction:column; gap:12px;">
+        <h3 style="font-size:18px;" data-i18n="add_title">Добавление нового узла</h3>
+        <input id="add-name" data-i18n-ph="ph_name" placeholder="Название (например: Рабочий ПК)" style="background:var(--bg); color:var(--text); border:1px solid var(--border); padding:9px; border-radius:8px;">
+        <input id="add-os" data-i18n-ph="ph_os" placeholder="ОС (Windows / Linux)" style="background:var(--bg); color:var(--text); border:1px solid var(--border); padding:9px; border-radius:8px;">
+        <input id="add-lan" data-i18n-ph="ph_lan" placeholder="Локальный IP (LAN) — обязательно *" style="background:var(--bg); color:var(--text); border:1px solid var(--border); padding:9px; border-radius:8px;">
+        <input id="add-zt" data-i18n-ph="ph_zt" placeholder="ZeroTier IP (необязательно)" style="background:var(--bg); color:var(--text); border:1px solid var(--border); padding:9px; border-radius:8px;">
+        <input id="add-mac" data-i18n-ph="ph_mac" placeholder="MAC-адрес XX:XX:XX:XX:XX:XX (необязательно)" style="background:var(--bg); color:var(--text); border:1px solid var(--border); padding:9px; border-radius:8px;">
+        <input id="add-user" data-i18n-ph="ph_user" placeholder="Логин для RDP (по умолчанию: User)" style="background:var(--bg); color:var(--text); border:1px solid var(--border); padding:9px; border-radius:8px;">
+        <label style="font-size:13px; color:var(--muted); display:flex; align-items:center; gap:8px; cursor:pointer;">
+            <input type="checkbox" id="add-moonlight" checked> <span data-i18n="lbl_moonlight">Добавить кнопку запуска Moonlight</span>
+        </label>
+        <label style="font-size:13px; color:var(--muted); display:flex; align-items:center; gap:8px; cursor:pointer;">
+            <input type="checkbox" id="add-copyparty"> <span data-i18n="lbl_copyparty">Добавить кнопку Copyparty (Файлы)</span>
+        </label>
+        <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:6px;">
+            <button onclick="closeAddModal()" data-i18n="btn_cancel">Отмена</button>
+            <button class="btn-primary" onclick="validateAndSaveDevice()" data-i18n="btn_submit">Добавить</button>
+        </div>
+    </div>
+</div>
+
+<div id="warn-modal" style="position:fixed; inset:0; background:rgba(0,0,0,0.8); display:none; justify-content:center; align-items:center; padding:20px; z-index:270;">
+    <div style="background:var(--card); border:1px solid var(--border); border-radius:12px; max-width:460px; width:100%; padding:20px; display:flex; flex-direction:column; gap:14px;">
+        <h3 style="font-size:18px; color:#f59e0b;" data-i18n="warn_title">Ограничения конфигурации</h3>
+        <div id="warn-list" style="font-size:13px; color:var(--text); line-height:1.5; display:flex; flex-direction:column; gap:10px; background:var(--bg); padding:12px; border-radius:8px;"></div>
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+            <button onclick="document.getElementById('warn-modal').style.display='none'" data-i18n="btn_back_fill">Вернуться и заполнить</button>
+            <button class="btn-primary" onclick="submitNewDevice()" data-i18n="btn_force_add">Всё равно добавить</button>
+        </div>
+    </div>
+</div>
+<div id="theme-modal" style="position:fixed; inset:0; background:rgba(0,0,0,0.75); display:none; justify-content:center; align-items:center; padding:20px; z-index:280;">
+    <div style="background:var(--card); border:1px solid var(--border); border-radius:12px; max-width:380px; width:100%; padding:20px; display:flex; flex-direction:column; gap:14px;">
+        <h3 style="font-size:18px;" data-i18n="theme_editor_title">Конструктор темы</h3>
+        <input id="theme-name-input" placeholder="Название темы" style="background:var(--bg); color:var(--text); border:1px solid var(--border); padding:9px; border-radius:8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; background:var(--bg); padding:10px; border-radius:8px; border:1px solid var(--border);">
+            <span style="font-size:13px;" data-i18n="theme_bg_color">Основной цвет (фон)</span>
+            <input type="color" id="theme-bg-input" value="#0f1117" style="width:42px; height:28px; border:none; background:transparent; cursor:pointer;">
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; background:var(--bg); padding:10px; border-radius:8px; border:1px solid var(--border);">
+            <span style="font-size:13px;" data-i18n="theme_acc_color">Акцентный цвет</span>
+            <input type="color" id="theme-acc-input" value="#3b82f6" style="width:42px; height:28px; border:none; background:transparent; cursor:pointer;">
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:4px;">
+            <button onclick="closeThemeEditor()" data-i18n="btn_cancel">Отмена</button>
+            <button class="btn-primary" onclick="saveCustomTheme()" data-i18n="btn_save">Сохранить</button>
+        </div>
+    </div>
+</div>
+<div id="ml-modal" style="position:fixed; inset:0; background:rgba(0,0,0,0.75); display:none; justify-content:center; align-items:center; padding:20px; z-index:285;">
+    <div style="background:var(--card); border:1px solid var(--border); border-radius:12px; max-width:440px; width:100%; padding:20px; display:flex; flex-direction:column; gap:14px;">
+        <h3 id="ml-title" style="font-size:18px;">Подключение Moonlight</h3>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; background:var(--bg); padding:10px 12px; border-radius:8px; border:1px solid var(--border);">
+            <code id="ml-ip-display" style="font-size:16px; font-weight:700; color:var(--accent);">0.0.0.0</code>
+            <button class="btn-primary" onclick="copyMlIp()" data-i18n="btn_copy">Копировать IP</button>
+        </div>
+        <div id="ml-steps" style="font-size:13px; color:var(--text); line-height:1.6; background:var(--bg); padding:12px; border-radius:8px; border:1px solid var(--border);"></div>
+        <div style="display:flex; justify-content:flex-end;">
+            <button onclick="document.getElementById('ml-modal').style.display='none'" data-i18n="btn_close">Закрыть</button>
+        </div>
+    </div>
+</div>
+<div id="ml-modal" style="position:fixed; inset:0; background:rgba(0,0,0,0.75); display:none; justify-content:center; align-items:center; padding:20px; z-index:285;">
+    <div style="background:var(--card); border:1px solid var(--border); border-radius:12px; max-width:440px; width:100%; padding:20px; display:flex; flex-direction:column; gap:14px;">
+        <h3 id="ml-title" style="font-size:18px;">Подключение Moonlight</h3>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; background:var(--bg); padding:10px 12px; border-radius:8px; border:1px solid var(--border);">
+            <code id="ml-ip-display" style="font-size:16px; font-weight:700; color:var(--accent);">0.0.0.0</code>
+            <button class="btn-primary" onclick="copyMlIp()" data-i18n="btn_copy">Копировать IP</button>
+        </div>
+        <div id="ml-steps" style="font-size:13px; color:var(--text); line-height:1.6; background:var(--bg); padding:12px; border-radius:8px; border:1px solid var(--border);"></div>
+        <div style="display:flex; justify-content:flex-end;">
+            <button onclick="document.getElementById('ml-modal').style.display='none'" data-i18n="btn_close">Закрыть</button>
+        </div>
+    </div>
+</div>
+<div id="confirm-modal" style="position:fixed; inset:0; background:rgba(0,0,0,0.75); display:none; justify-content:center; align-items:center; padding:20px; z-index:290;">
+    <div style="background:var(--card); border:1px solid var(--border); border-radius:12px; max-width:380px; width:100%; padding:20px; display:flex; flex-direction:column; gap:14px;">
+        <h3 id="confirm-title" style="font-size:18px;">Подтверждение</h3>
+        <p id="confirm-text" style="font-size:14px; color:var(--muted); line-height:1.5;"></p>
+        <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:4px;">
+            <button onclick="closeConfirm()" data-i18n="btn_cancel">Отмена</button>
+            <button id="confirm-yes" class="btn-power-off" style="min-width:auto; padding:8px 16px;">Подтвердить</button>
+        </div>
+    </div>
+</div>
+<div id="toast"></div>
+<script>
+let pendingPower = null;
+const dict = {
+    ru: {
+        subtitle: "Центр управления локальной сетью", mode_lan: "Сеть: LAN (Локальная)", mode_zt: "Сеть: ZeroTier (Удалённая)",
+        btn_theme: "Тема", theme_dark: "Тёмная", theme_light: "Светлая", theme_custom_new: "+ Custom (Создать)", theme_editor_title: "Конструктор темы", theme_bg_color: "Основной цвет (фон)", theme_acc_color: "Акцентный цвет", btn_save: "Сохранить", btn_copy: "Копировать IP", btn_close: "Закрыть",
+        ml_copied: "IP-адрес скопирован в буфер обмена",
+        ml_steps_html: "<b>Порядок подключения:</b><br>1. Убедитесь, что на целевом ПК запущен <b>Sunshine</b> или <b>GeForce Experience (GameStream)</b>.<br>2. Откройте клиент <b>Moonlight</b> на вашем устройстве.<br>3. Нажмите значок добавления ПК (<svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align: -4px; margin: 0 3px;'><rect x='2' y='3' width='20' height='14' rx='2'/><path d='M8 21h8'/><path d='M12 17v4'/><path d='M12 7v6'/><path d='M9 10h6'/></svg> на ПК или <svg width='18' height='18' viewBox='0 0 24 24' style='vertical-align: -4px; margin: 0 3px;'><circle cx='12' cy='12' r='10' fill='#ffffff'/><path d='M12 7v10M7 12h10' stroke='#1e293b' stroke-width='2.5' stroke-linecap='round'/></svg> в правом верхнем углу на смартфоне) и вставьте скопированный IP-адрес.<br>4. При первом подключении введите PIN-код из Moonlight в веб-интерфейсе Sunshine на целевом ПК.",
+        btn_add_pc: "+ Добавить ПК", hub_cpu: "Нагрузка CPU Хаба", hub_ram: "Память ОЗУ Хаба", hub_temp: "Температура Хаба",
+        btn_wol: "Включить (WOL)", btn_off: "Выключить", btn_reboot: "Перезагрузка", btn_screen: "Скриншот", btn_stats: "Мониторинг", btn_files: "Файлы",
+        online: "В сети", offline: "Офлайн", add_title: "Добавление нового узла",
+        ph_name: "Название (например: Рабочий ПК)", ph_os: "ОС (Windows / Linux)", ph_lan: "Локальный IP (LAN) — обязательно *",
+        ph_zt: "ZeroTier IP (необязательно)", ph_mac: "MAC-адрес XX:XX:XX:XX:XX:XX (необязательно)", ph_user: "Логин для RDP (по умолчанию: User)",
+        lbl_moonlight: "Добавить кнопку запуска Moonlight", lbl_copyparty: "Добавить кнопку Copyparty (Файлы)", btn_cancel: "Отмена", btn_submit: "Добавить",
+        warn_title: "Ограничения конфигурации", btn_back_fill: "Вернуться и заполнить", btn_force_add: "Всё равно добавить",
+        err_no_lan: "Укажите обязательный локальный IP (LAN)",
+        warn_no_mac: "<b>{n}. Не указан MAC-адрес:</b><br>• Недоступно удалённое включение (Wake-on-LAN) из выключенного состояния и глубокого сна (S4/S5).<br>• Потребуется статическая привязка IP к устройству (DHCP Reservation) на роутере, иначе при смене адреса хаб потеряет связь с ПК.",
+        warn_no_zt: "<b>{n}. Не указан ZeroTier IP:</b><br>• Невозможно подключиться к ПК (RDP, Moonlight, мониторинг, скриншоты) из внешней сети, через мобильный интернет или из-за NAT/серого IP провайдера без ручного проброса портов на роутере.<br>• Управление будет работать только внутри локальной подсети (LAN)."
+    },
+    en: {
+        subtitle: "Local Network Control Center", mode_lan: "Network: LAN (Local)", mode_zt: "Network: ZeroTier (Remote)",
+        btn_theme: "Theme", theme_dark: "Dark", theme_light: "Light", theme_custom_new: "+ Custom (Create)", theme_editor_title: "Theme Editor", theme_bg_color: "Primary color (background)", theme_acc_color: "Accent color", btn_save: "Save", btn_copy: "Copy IP", btn_close: "Close",
+        ml_copied: "IP address copied to clipboard",
+        ml_steps_html: "<b>Connection Steps:</b><br>1. Ensure <b>Sunshine</b> or <b>GeForce Experience (GameStream)</b> is running on the target PC.<br>2. Launch the <b>Moonlight</b> client on your device.<br>3. Click the Add PC button (<svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align: -4px; margin: 0 3px;'><rect x='2' y='3' width='20' height='14' rx='2'/><path d='M8 21h8'/><path d='M12 17v4'/><path d='M12 7v6'/><path d='M9 10h6'/></svg> on desktop, or <svg width='18' height='18' viewBox='0 0 24 24' style='vertical-align: -4px; margin: 0 3px;'><circle cx='12' cy='12' r='10' fill='#ffffff'/><path d='M12 7v10M7 12h10' stroke='#1e293b' stroke-width='2.5' stroke-linecap='round'/></svg> in the top-right corner on mobile) and paste the copied IP address.<br>4. On first pairing, enter the PIN shown in Moonlight into the Sunshine web UI on the host PC.",
+        btn_add_pc: "+ Add PC", hub_cpu: "Hub CPU Load", hub_ram: "Hub RAM Usage", hub_temp: "Hub Temp",
+        btn_wol: "Wake (WOL)", btn_off: "Shutdown", btn_reboot: "Reboot", btn_screen: "Screenshot", btn_stats: "Monitoring", btn_files: "Files",
+        online: "Online", offline: "Offline", add_title: "Add New Node",
+        ph_name: "Name (e.g., Workstation)", ph_os: "OS (Windows / Linux)", ph_lan: "Local IP (LAN) — required *",
+        ph_zt: "ZeroTier IP (optional)", ph_mac: "MAC address XX:XX:XX:XX:XX:XX (optional)", ph_user: "RDP username (default: User)",
+        lbl_moonlight: "Show Moonlight launch button", lbl_copyparty: "Show Copyparty (Files) button", btn_cancel: "Cancel", btn_submit: "Add",
+        warn_title: "Configuration Limitations", btn_back_fill: "Go back and fill in", btn_force_add: "Add anyway",
+        err_no_lan: "Please enter a required Local IP (LAN)",
+        warn_no_mac: "<b>{n}. MAC address is missing:</b><br>• Remote power-on (Wake-on-LAN) from power-off or deep sleep (S4/S5) will not work.<br>• Static IP binding (DHCP Reservation) on the router is required, otherwise the hub will lose connection if the IP changes.",
+        warn_no_zt: "<b>{n}. ZeroTier IP is missing:</b><br>• Remote access (RDP, Moonlight, monitoring, screenshots) over cellular data or behind ISP NAT/CGNAT will not work without manual router port forwarding.<br>• Management will be restricted to the local area network (LAN) only."
+    }
+};
+let curLang = localStorage.getItem('lang') || '{{ config.default_lang }}';
+
+function applyLang() {
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const k = el.getAttribute('data-i18n');
+        if (dict[curLang][k]) el.textContent = dict[curLang][k];
+    });
+    document.querySelectorAll('[data-i18n-ph]').forEach(el => { const k = el.getAttribute('data-i18n-ph'); if (dict[curLang][k]) el.placeholder = dict[curLang][k]; });
+}
+function toggleLang() { curLang = curLang === 'ru' ? 'en' : 'ru'; localStorage.setItem('lang', curLang); applyLang(); updateStatus(); }
+let editingThemeIdx = null;
+function getCustomThemes() { try { return JSON.parse(localStorage.getItem('custom_themes') || '[]'); } catch (e) { return []; } }
+function adjustHex(hex, amt) {
+    let col = hex.replace('#', '');
+    if (col.length === 3) col = col.split('').map(c => c + c).join('');
+    let num = parseInt(col, 16);
+    let r = Math.min(255, Math.max(0, (num >> 16) + amt));
+    let g = Math.min(255, Math.max(0, ((num >> 8) & 0x00FF) + amt));
+    let b = Math.min(255, Math.max(0, (num & 0x0000FF) + amt));
+    return '#' + (1 << 24 | r << 16 | g << 8 | b).toString(16).slice(1);
+}
+function isLightColor(hex) {
+    let col = hex.replace('#', '');
+    if (col.length === 3) col = col.split('').map(c => c + c).join('');
+    const r = parseInt(col.substr(0, 2), 16), g = parseInt(col.substr(2, 2), 16), b = parseInt(col.substr(4, 2), 16);
+    return ((r * 299) + (g * 587) + (b * 114)) / 1000 > 140;
+}
+function updateFaviconColor(hex) {
+    const enc = encodeURIComponent(hex);
+    const link = document.getElementById('dynamic-favicon');
+    if (link) {
+        link.href = `data:image/svg+xml,%3Csvg xmlns='http://w3.org' viewBox='0 0 32 32'%3E%3Crect x='2' y='4' width='28' height='24' rx='5' fill='%230f172a' stroke='${enc}' stroke-width='2.5'/%3E%3Cpath d='M8 12l4 4-4 4M15 20h6' stroke='%23ffffff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3Ccircle cx='25' cy='9' r='2' fill='%2310b981'/%3E%3C/svg%3E`;
+    }
+}
+function clearCustomCssVars() {
+    ['--bg', '--card', '--text', '--muted', '--border', '--accent', '--accent-hover'].forEach(v => document.documentElement.style.removeProperty(v));
+}
+function mixHex(c1, c2, weight) {
+    const p = h => {
+        let c = h.replace('#', '');
+        if (c.length === 3) c = c.split('').map(x => x + x).join('');
+        return [parseInt(c.substr(0,2),16), parseInt(c.substr(2,2),16), parseInt(c.substr(4,2),16)];
+    };
+    const [r1,g1,b1] = p(c1), [r2,g2,b2] = p(c2);
+    const r = Math.round(r1 * weight + r2 * (1 - weight));
+    const g = Math.round(g1 * weight + g2 * (1 - weight));
+    const b = Math.round(b1 * weight + b2 * (1 - weight));
+    return '#' + (1 << 24 | r << 16 | g << 8 | b).toString(16).slice(1);
+}
+function applyCustomPalette(bg, acc) {
+    const light = isLightColor(bg), root = document.documentElement.style;
+    root.setProperty('--bg', bg);
+    root.setProperty('--card', light ? mixHex(acc, '#ffffff', 0.14) : mixHex(acc, '#0b0d13', 0.22));
+    root.setProperty('--border', acc);
+    root.setProperty('--text', light ? '#0f172a' : '#f1f5f9');
+    root.setProperty('--muted', light ? '#475569' : '#94a3b8');
+    root.setProperty('--accent', acc);
+    root.setProperty('--accent-hover', adjustHex(acc, -18));
+    updateFaviconColor(acc);
+}
+function selectBuiltinTheme(name) {
+    clearCustomCssVars();
+    document.documentElement.setAttribute('data-theme', name);
+    localStorage.setItem('theme', name);
+    localStorage.removeItem('active_custom_theme');
+    updateFaviconColor(name === 'light' ? '#2563eb' : '#3b82f6');
+    document.getElementById('theme-menu').style.display = 'none';
+}
+function applyCustomThemeByIndex(idx) {
+    const list = getCustomThemes();
+    if (!list[idx]) return;
+    applyCustomPalette(list[idx].bg, list[idx].acc);
+    localStorage.setItem('active_custom_theme', String(idx));
+    document.getElementById('theme-menu').style.display = 'none';
+}
+function renderThemeMenu() {
+    const list = getCustomThemes(), container = document.getElementById('custom-themes-list');
+    container.style.display = list.length ? 'flex' : 'none';
+    container.innerHTML = '';
+    list.forEach((t, idx) => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:4px; padding:2px 4px;';
+        row.innerHTML = `<button onclick="applyCustomThemeByIndex(${idx})" style="flex:1; justify-content:flex-start; border:none; background:transparent; padding:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:${t.acc}; border:1px solid var(--border); flex-shrink:0;"></span> ${t.name}</button><button onclick="openThemeEditor(${idx})" class="icon-btn icon-edit" title="Edit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/><path d="M15 5l3 3"/><path d="M4.5 16.5l3 3"/></svg></button><button onclick="deleteCustomTheme(${idx})" class="icon-btn icon-del" title="Delete"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>`;
+        container.appendChild(row);
+    });
+    document.getElementById('btn-new-theme').style.display = list.length >= 10 ? 'none' : 'flex';
+}
+function toggleThemeMenu(e) {
+    e.stopPropagation();
+    const menu = document.getElementById('theme-menu'), open = menu.style.display === 'flex';
+    if (!open) renderThemeMenu();
+    menu.style.display = open ? 'none' : 'flex';
+}
+document.addEventListener('click', (e) => {
+    const wrap = document.getElementById('theme-dropdown-wrap');
+    if (wrap && !wrap.contains(e.target)) document.getElementById('theme-menu').style.display = 'none';
+});
+function openThemeEditor(idx = null) {
+    document.getElementById('theme-menu').style.display = 'none';
+    const list = getCustomThemes();
+    if (idx === null && list.length >= 10) return;
+    editingThemeIdx = idx;
+    if (idx !== null && list[idx]) {
+        document.getElementById('theme-name-input').value = list[idx].name;
+        document.getElementById('theme-bg-input').value = list[idx].bg;
+        document.getElementById('theme-acc-input').value = list[idx].acc;
+    } else {
+        document.getElementById('theme-name-input').value = `Custom ${list.length + 1}`;
+        document.getElementById('theme-bg-input').value = '#12141d';
+        document.getElementById('theme-acc-input').value = '#10b981';
+    }
+    document.getElementById('theme-modal').style.display = 'flex';
+}
+function closeThemeEditor() { document.getElementById('theme-modal').style.display = 'none'; editingThemeIdx = null; }
+function saveCustomTheme() {
+    const list = getCustomThemes();
+    const name = document.getElementById('theme-name-input').value.trim() || `Custom ${list.length + 1}`;
+    const bg = document.getElementById('theme-bg-input').value, acc = document.getElementById('theme-acc-input').value;
+    let targetIdx = editingThemeIdx;
+    if (targetIdx !== null && list[targetIdx]) { list[targetIdx] = { name, bg, acc }; }
+    else { if (list.length >= 10) return; list.push({ name, bg, acc }); targetIdx = list.length - 1; }
+    localStorage.setItem('custom_themes', JSON.stringify(list));
+    closeThemeEditor();
+    applyCustomThemeByIndex(targetIdx);
+}
+function deleteCustomTheme(idx) {
+    const list = getCustomThemes();
+    list.splice(idx, 1);
+    localStorage.setItem('custom_themes', JSON.stringify(list));
+    const activeIdx = localStorage.getItem('active_custom_theme');
+    if (activeIdx !== null) {
+        if (Number(activeIdx) === idx) selectBuiltinTheme(localStorage.getItem('theme') || 'dark');
+        else if (Number(activeIdx) > idx) localStorage.setItem('active_custom_theme', String(Number(activeIdx) - 1));
+    }
+    renderThemeMenu();
+}
+(function initSavedTheme() {
+    const b = localStorage.getItem('theme');
+    if (b) document.documentElement.setAttribute('data-theme', b);
+    const c = localStorage.getItem('active_custom_theme');
+    if (c !== null) { const list = getCustomThemes(); if (list[Number(c)]) applyCustomPalette(list[Number(c)].bg, list[Number(c)].acc); }
+})();
+
+function setNetworkMode(mode) {
+    const sel = document.getElementById('modeSelect');
+    sel.value = mode;
+    document.querySelectorAll('.rdp-link').forEach(a => a.href = `/rdp/${mode}/${a.dataset.id}.rdp`);
+}
+document.getElementById('modeSelect').addEventListener('change', (e) => setNetworkMode(e.target.value));
+const hostIp = window.location.hostname;
+if (hostIp.startsWith('10.') || hostIp.startsWith('172.')) {
+    setNetworkMode('zt');
+} else {
+    setNetworkMode('lan');
+}
+
+function showToast(msg) {
+    const t = document.getElementById('toast'); t.textContent = msg; t.style.display = 'block';
+    setTimeout(() => t.style.display = 'none', 3000);
+}
+
+function launchMoonlight(lanIp, ztIp, name) {
+    const mode = document.getElementById('modeSelect').value;
+    const ip = (mode === 'zt' && ztIp) ? ztIp : lanIp;
+    document.getElementById('ml-title').textContent = `Moonlight — ${name}`;
+    document.getElementById('ml-ip-display').textContent = ip;
+    document.getElementById('ml-steps').innerHTML = dict[curLang].ml_steps_html;
+    document.getElementById('ml-modal').style.display = 'flex';
+}
+function copyMlIp() {
+    const ip = document.getElementById('ml-ip-display').textContent;
+    navigator.clipboard.writeText(ip).then(() => showToast(dict[curLang].ml_copied)).catch(() => showToast(ip));
+}
+function openFiles(lanIp, ztIp) {
+    const mode = document.getElementById('modeSelect').value;
+    const ip = mode === 'zt' ? ztIp : lanIp;
+    window.open(`http://${ip}:3923`, '_blank');
+}
+
+let pendingDevicePayload = null;
+let editingDeviceId = null;
+
+function openAddModal() {
+    editingDeviceId = null;
+    document.querySelector('#add-modal h3').textContent = dict[curLang].add_title;
+    document.querySelector('#add-modal .btn-primary').textContent = dict[curLang].btn_submit;
+    document.getElementById('add-name').value = '';
+    document.getElementById('add-os').value = '';
+    document.getElementById('add-lan').value = '';
+    document.getElementById('add-zt').value = '';
+    document.getElementById('add-mac').value = '';
+    document.getElementById('add-user').value = '';
+    document.getElementById('add-moonlight').checked = true;
+    document.getElementById('add-copyparty').checked = false;
+    document.getElementById('add-modal').style.display = 'flex';
+}
+
+function openEditModal(id, name, os, lan, zt, mac, user, moonlight, copyparty = false) {
+    editingDeviceId = id;
+    document.querySelector('#add-modal h3').textContent = curLang === 'ru' ? 'Редактирование узла' : 'Edit Node';
+    document.querySelector('#add-modal .btn-primary').textContent = curLang === 'ru' ? 'Сохранить' : 'Save';
+    document.getElementById('add-name').value = name;
+    document.getElementById('add-os').value = os;
+    document.getElementById('add-lan').value = lan;
+    document.getElementById('add-zt').value = zt;
+    document.getElementById('add-mac').value = mac;
+    document.getElementById('add-user').value = user;
+    document.getElementById('add-moonlight').checked = moonlight;
+    document.getElementById('add-copyparty').checked = copyparty;
+    document.getElementById('add-modal').style.display = 'flex';
+}
+
+function closeAddModal() {
+    document.getElementById('add-modal').style.display = 'none';
+    editingDeviceId = null;
+}
+
+function validateAndSaveDevice() {
+    const lan = document.getElementById('add-lan').value.trim();
+    if (!lan) { showToast(dict[curLang].err_no_lan); return; }
+    const zt = document.getElementById('add-zt').value.trim();
+    const mac = document.getElementById('add-mac').value.trim();
+
+    pendingDevicePayload = {
+        name: document.getElementById('add-name').value.trim(),
+        os: document.getElementById('add-os').value.trim(),
+        lan_ip: lan,
+        zt_ip: zt,
+        mac: mac,
+        rdp_user: document.getElementById('add-user').value.trim(),
+        moonlight: document.getElementById('add-moonlight').checked,
+        copyparty: document.getElementById('add-copyparty').checked
+    };
+
+    const warnings = [];
+    if (!mac) {
+        warnings.push(dict[curLang].warn_no_mac.replace('{n}', warnings.length + 1));
+    }
+    if (!zt) {
+        warnings.push(dict[curLang].warn_no_zt.replace('{n}', warnings.length + 1));
+    }
+
+    if (warnings.length > 0) {
+        document.getElementById('warn-list').innerHTML = warnings.join('<hr style="border:none; border-top:1px solid var(--border);">');
+        document.getElementById('warn-modal').style.display = 'flex';
+    } else {
+        submitNewDevice();
+    }
+}
+
+async function submitNewDevice() {
+    if (!pendingDevicePayload) return;
+    const targetId = editingDeviceId;
+    document.getElementById('warn-modal').style.display = 'none';
+    closeAddModal();
+    const endpoint = targetId ? `/api/device/edit/${targetId}` : '/api/device/add';
+    const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pendingDevicePayload)
+    });
+    const data = await res.json();
+    if (data.ok) {
+        location.reload();
+    } else {
+        showToast(data.msg || 'Ошибка добавления');
+    }
+}
+
+function deleteDevice(id) {
+    const devName = document.getElementById(`name-${id}`).textContent;
+    document.getElementById('confirm-title').textContent = devName;
+    document.getElementById('confirm-text').textContent = curLang === 'ru'
+        ? 'Удалить эту карточку из конфигурации?'
+        : 'Delete this node from configuration?';
+    pendingPower = { id, act: 'delete_node' };
+    document.getElementById('confirm-modal').style.display = 'flex';
+}
+
+async function sendWol(id) {
+    const res = await fetch(`/api/wol/${id}`, { method: 'POST' });
+    showToast((await res.json()).msg);
+}
+
+async function takeScreen(id, name) {
+    showToast('Запрос скриншота...');
+    const res = await fetch(`/api/agent/${id}/screenshot`);
+    if (!res.ok) { showToast((await res.json()).msg); return; }
+    const blob = await res.blob();
+    document.getElementById('modal-title').textContent = name + ' — ' + new Date().toLocaleTimeString();
+    document.getElementById('modal-img').src = URL.createObjectURL(blob);
+    document.getElementById('modal').style.display = 'flex';
+}
+function closeModal() { document.getElementById('modal').style.display = 'none'; }
+
+async function getStats(id) {
+    const box = document.getElementById(`stats-${id}`);
+    box.style.display = 'block'; box.textContent = 'Загрузка...';
+    const res = await fetch(`/api/agent/${id}/stats`);
+    const data = await res.json();
+    if (!data.ok) { box.textContent = data.msg; return; }
+    box.innerHTML = `CPU: <b>${data.cpu}%</b> | ОЗУ: <b>${data.ram_used}/${data.ram_total} ГБ</b> | Топ: <code>${data.top_proc}</code>`;
+}
+
+
+
+
+
+async function renameDevice(id) {
+    const curName = document.getElementById(`name-${id}`).textContent;
+    const nextName = prompt('Введите новое название ПК:', curName);
+    if (!nextName || nextName.trim() === curName) return;
+    const res = await fetch(`/api/rename/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: nextName.trim() })
+    });
+    const data = await res.json();
+    if (data.ok) {
+        document.getElementById(`name-${id}`).textContent = data.name;
+        showToast('Название сохранено');
+    } else {
+        showToast(data.msg);
+    }
+}
+
+
+function handlePowerBtn(id) {
+    const btn = document.getElementById(`pwr-${id}`);
+    if (btn && btn.dataset.online === '1') {
+        powerAction(id, 'shutdown');
+    } else {
+        sendWol(id);
+    }
+}
+function powerAction(id, act) {
+    const devNameEl = document.getElementById(`name-${id}`);
+    const devName = devNameEl ? devNameEl.textContent : id;
+    document.getElementById('confirm-title').textContent = devName;
+    if (curLang === 'ru') {
+        document.getElementById('confirm-text').textContent = act === 'shutdown'
+            ? 'Вы действительно хотите выключить этот компьютер?'
+            : 'Вы действительно хотите перезагрузить этот компьютер?';
+        document.getElementById('confirm-yes').textContent = act === 'shutdown' ? 'Выключить' : 'Перезагрузить';
+    } else {
+        document.getElementById('confirm-text').textContent = act === 'shutdown'
+            ? 'Are you sure you want to shut down this PC?'
+            : 'Are you sure you want to reboot this PC?';
+        document.getElementById('confirm-yes').textContent = act === 'shutdown' ? 'Shutdown' : 'Reboot';
+    }
+    pendingPower = { id, act };
+    document.getElementById('confirm-modal').style.display = 'flex';
+}
+function closeConfirm() {
+    document.getElementById('confirm-modal').style.display = 'none';
+    pendingPower = null;
+}
+document.getElementById('confirm-yes').onclick = async () => {
+    if (!pendingPower) return;
+    const { id, act } = pendingPower;
+    closeConfirm();
+    if (act === 'delete_node') {
+        const res = await fetch(`/api/device/delete/${id}`, { method: 'POST' });
+        if ((await res.json()).ok) location.reload();
+        return;
+    }
+    const res = await fetch(`/api/agent/${id}/${act}`, { method: 'POST' });
+    const data = await res.json();
+    showToast(data.msg || 'Команда отправлена');
+};
+
+async function updateStatus() {
+    try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        const cpuEl = document.getElementById('hub-cpu');
+        const ramEl = document.getElementById('hub-ram');
+        const tmpEl = document.getElementById('hub-temp');
+        if (cpuEl) cpuEl.textContent = data.hub.cpu + '%';
+        if (ramEl) ramEl.textContent = `${data.hub.ram_used} / ${data.hub.ram_total} ГБ`;
+        if (tmpEl) tmpEl.textContent = data.hub.temp;
+
+        for (const [id, st] of Object.entries(data.devices)) {
+            const b = document.getElementById(`status-${id}`);
+            if (b) {
+                b.textContent = st.online ? dict[curLang].online : dict[curLang].offline;
+                b.className = st.online ? 'badge online' : 'badge';
+            }
+            const pwr = document.getElementById(`pwr-${id}`);
+            if (pwr) {
+                pwr.dataset.online = st.online ? '1' : '0';
+                pwr.textContent = st.online ? dict[curLang].btn_off : dict[curLang].btn_wol;
+                pwr.className = st.online ? 'btn-power-off' : 'btn-power-on';
+            }
+            const rbt = document.getElementById(`reboot-${id}`);
+            if (rbt) {
+                rbt.style.display = st.online ? 'inline-flex' : 'none';
+            }
+            const lEl = document.getElementById(`lan-${id}`);
+            if (lEl) lEl.textContent = st.lan ? '[ON]' : '[OFF]';
+            const zEl = document.getElementById(`zt-${id}`);
+            if (zEl) zEl.textContent = st.zt ? '[ON]' : '[OFF]';
+        }
+    } catch (e) { console.error(e); }
+}
+updateStatus();
+setInterval(updateStatus, 5000);
+</script>
+</body>
+</html>
